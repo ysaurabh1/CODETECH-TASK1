@@ -1,0 +1,259 @@
+CREATE DATABASE hotel;
+USE hotel;
+
+-- Table: rooms
+CREATE TABLE rooms (
+    room_id INT PRIMARY KEY AUTO_INCREMENT,
+    room_number VARCHAR(10) NOT NULL UNIQUE,
+    room_type VARCHAR(50) NOT NULL,
+    price_per_night DECIMAL(10, 2) NOT NULL,
+    is_available BOOLEAN DEFAULT TRUE
+);
+
+-- Table: customers
+CREATE TABLE customers (
+    customer_id INT PRIMARY KEY AUTO_INCREMENT,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    phone_number VARCHAR(15),
+    address TEXT
+);
+
+-- Table: reservations
+CREATE TABLE reservations (
+    reservation_id INT PRIMARY KEY AUTO_INCREMENT,
+    customer_id INT NOT NULL,
+    room_id INT NOT NULL,
+    check_in_date DATE NOT NULL,
+    check_out_date DATE NOT NULL,
+    total_amount DECIMAL(10, 2) NOT NULL,
+    reservation_status ENUM('Booked', 'Checked In', 'Checked Out', 'Cancelled') DEFAULT 'Booked',
+    FOREIGN KEY (customer_id) REFERENCES customers(customer_id),
+    FOREIGN KEY (room_id) REFERENCES rooms(room_id)
+);
+
+-- Table: payments
+CREATE TABLE payments (
+    payment_id INT PRIMARY KEY AUTO_INCREMENT,
+    reservation_id INT NOT NULL,
+    payment_date DATE NOT NULL,
+    amount DECIMAL(10, 2) NOT NULL,
+    payment_method ENUM('Cash', 'Credit Card', 'Debit Card', 'Online') NOT NULL,
+    payment_status ENUM('Pending', 'Completed', 'Failed') DEFAULT 'Pending',
+    FOREIGN KEY (reservation_id) REFERENCES reservations(reservation_id)
+);
+
+
+
+-- View: Available Rooms
+CREATE VIEW available_rooms AS
+SELECT room_id, room_number, room_type, price_per_night
+FROM rooms
+WHERE is_available = TRUE;
+
+-- Procedure: Book Room
+DELIMITER $$
+CREATE PROCEDURE book_room (
+    IN p_customer_id INT,
+    IN p_room_id INT,
+    IN p_check_in DATE,
+    IN p_check_out DATE
+)
+BEGIN
+    DECLARE room_price DECIMAL(10, 2);
+    DECLARE total_cost DECIMAL(10, 2);
+
+    -- Check room availability
+    IF EXISTS (
+        SELECT 1 FROM rooms WHERE room_id = p_room_id AND is_available = TRUE
+    ) THEN
+        -- Calculate total cost
+        SELECT price_per_night INTO room_price FROM rooms WHERE room_id = p_room_id;
+        SET total_cost = DATEDIFF(p_check_out, p_check_in) * room_price;
+
+        -- Insert reservation
+      INSERT INTO reservations (customer_id, room_id, check_in_date, check_out_date, total_amount, reservation_status)
+VALUES (1, 1, '2024-01-01', '2024-01-05', 4000.00, 'Booked'),
+       (2, 2, '2024-01-03', '2024-01-06', 6000.00, 'Booked'),
+       (3, 3, '2024-01-04', '2024-01-08', 20000.00, 'Booked'),
+       (4, 4, '2024-01-02', '2024-01-07', 6000.00, 'Cancelled'),
+       (5, 5, '2024-01-05', '2024-01-10', 11000.00, 'Checked In'),
+       (6, 6, '2024-01-06', '2024-01-11', 26000.00, 'Checked Out'),
+       (7, 7, '2024-01-07', '2024-01-12', 6500.00, 'Booked'),
+       (8, 8, '2024-01-08', '2024-01-13', 11500.00, 'Booked'),
+       (9, 9, '2024-01-09', '2024-01-14', 26500.00, 'Booked'),
+       (10, 10, '2024-01-10', '2024-01-15', 7000.00, 'Booked'),
+
+       (11, 11, '2024-02-01', '2024-02-05', 9600.00, 'Booked'),
+       (12, 12, '2024-02-03', '2024-02-06', 14400.00, 'Booked'),
+       (13, 13, '2024-02-04', '2024-02-08', 43200.00, 'Booked'),
+       (14, 14, '2024-02-02', '2024-02-07', 9600.00, 'Cancelled'),
+       (15, 15, '2024-02-05', '2024-02-10', 22000.00, 'Checked In'),
+       (16, 16, '2024-02-06', '2024-02-11', 52000.00, 'Checked Out'),
+       (17, 17, '2024-02-07', '2024-02-12', 13000.00, 'Booked'),
+       (18, 18, '2024-02-08', '2024-02-13', 23000.00, 'Booked'),
+       (19, 19, '2024-02-09', '2024-02-14', 53000.00, 'Booked'),
+       (20, 20, '2024-02-10', '2024-02-15', 14000.00, 'Booked'),
+       (1, 2, '2024-02-11', '2024-02-16', 12800.00, 'Booked'),
+       (3, 4, '2024-02-12', '2024-02-17', 9600.00, 'Cancelled'),
+       (5, 6, '2024-02-13', '2024-02-18', 52000.00, 'Checked In'),
+       (7, 8, '2024-02-14', '2024-02-19', 23000.00, 'Booked'),
+       (9, 10, '2024-02-15', '2024-02-20', 53000.00, 'Checked Out'),
+       (11, 12, '2024-02-16', '2024-02-21', 14400.00, 'Booked'),
+       (13, 14, '2024-02-17', '2024-02-22', 9600.00, 'Cancelled'),
+       (15, 16, '2024-02-18', '2024-02-23', 52000.00, 'Checked In'),
+       (17, 18, '2024-02-19', '2024-02-24', 23000.00, 'Booked'),
+       (19, 20, '2024-02-20', '2024-02-25', 53000.00, 'Checked Out');
+
+        -- Mark room as unavailable
+        UPDATE rooms SET is_available = FALSE WHERE room_id = p_room_id;
+    ELSE
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Room is not available';
+    END IF;
+END $$
+DELIMITER ;
+
+-- Trigger: Automatically update room availability on reservation status change
+DELIMITER $$
+CREATE TRIGGER update_room_availability
+AFTER UPDATE ON reservations
+FOR EACH ROW
+BEGIN
+    IF NEW.reservation_status = 'Cancelled' OR NEW.reservation_status = 'Checked Out' THEN
+        UPDATE rooms SET is_available = TRUE WHERE room_id = NEW.room_id;
+    END IF;
+END $$
+DELIMITER ;
+
+
+-- Queries 
+
+-- 1. Insert  rooms
+INSERT INTO rooms (room_number, room_type, price_per_night, is_available) 
+VALUES ('101', 'Single', 1000.00, TRUE),
+       ('102', 'Double', 2000.00, TRUE),
+       ('103', 'Suite', 5000.00, TRUE),
+       ('104', 'Single', 1200.00, TRUE),
+       ('105', 'Double', 2200.00, TRUE),
+       ('106', 'Suite', 5200.00, TRUE),
+       ('107', 'Single', 1300.00, TRUE),
+       ('108', 'Double', 2300.00, TRUE),
+       ('109', 'Suite', 5300.00, TRUE),
+       ('110', 'Single', 1400.00, TRUE),
+       ('111', 'Double', 2400.00, TRUE),
+       ('112', 'Suite', 5400.00, TRUE),
+       ('113', 'Single', 1500.00, TRUE),
+       ('114', 'Double', 2500.00, TRUE),
+       ('115', 'Suite', 5500.00, TRUE),
+       ('116', 'Single', 1600.00, TRUE),
+       ('117', 'Double', 2600.00, TRUE),
+       ('118', 'Suite', 5600.00, TRUE),
+       ('119', 'Single', 1700.00, TRUE),
+       ('120', 'Double', 2700.00, TRUE);
+
+-- 2. Insert customers
+INSERT INTO customers (first_name, last_name, email, phone_number, address) 
+VALUES ('John', 'Doe', 'john.doe@example.com', '1234567890', '123 Elm Street'),
+       ('Jane', 'Smith', 'jane.smith@example.com', '0987654321', '456 Oak Street'),
+       ('Alice', 'Brown', 'alice.brown@example.com', '5555555555', '789 Pine Street'),
+       ('Bob', 'Johnson', 'bob.johnson@example.com', '4444444444', '101 Maple Street'),
+       ('Charlie', 'Williams', 'charlie.williams@example.com', '3333333333', '202 Birch Street'),
+       ('Diana', 'Taylor', 'diana.taylor@example.com', '2222222222', '303 Cedar Street'),
+       ('Eve', 'Harris', 'eve.harris@example.com', '1111111111', '404 Aspen Street'),
+       ('Frank', 'Martin', 'frank.martin@example.com', '6666666666', '505 Walnut Street'),
+       ('Grace', 'Clark', 'grace.clark@example.com', '7777777777', '606 Willow Street'),
+       ('Hank', 'Lewis', 'hank.lewis@example.com', '8888888888', '707 Elmwood Street'),
+       ('Ivy', 'Green', 'ivy.green@example.com', '9999999999', '808 Poplar Street'),
+       ('Jack', 'White', 'jack.white@example.com', '1010101010', '909 Dogwood Street'),
+       ('Kara', 'Black', 'kara.black@example.com', '1112111111', '100 Acacia Street'),
+       ('Leo', 'Gray', 'leo.gray@example.com', '1212121212', '111 Spruce Street'),
+       ('Mia', 'Silver', 'mia.silver@example.com', '1313131313', '222 Beech Street'),
+       ('Nina', 'Gold', 'nina.gold@example.com', '1414141414', '333 Alder Street'),
+       ('Owen', 'Plum', 'owen.plum@example.com', '1515151515', '444 Cypress Street'),
+       ('Paul', 'Red', 'paul.red@example.com', '1616161616', '555 Fir Street'),
+       ('Quinn', 'Blue', 'quinn.blue@example.com', '1717171717', '666 Magnolia Street'),
+       ('Rose', 'Violet', 'rose.violet@example.com', '1818181818', '777 Holly Street');
+
+-- 3. Make a reservation
+CALL book_room(1, 1, '2024-01-01', '2024-01-05');
+
+-- 4. Check available rooms
+SELECT * FROM available_rooms;
+
+-- 5. Update reservation status
+UPDATE reservations SET reservation_status = 'Checked Out' WHERE reservation_id = 1;
+
+-- 6. Verify room availability after checkout
+SELECT * FROM available_rooms;
+
+-- 7. Insert a payment
+INSERT INTO payments (reservation_id, payment_date, amount, payment_method, payment_status) 
+VALUES (1, '2024-01-01', 4000.00, 'Credit Card', 'Completed'),
+       (2, '2024-01-03', 6000.00, 'Debit Card', 'Completed'),
+       (3, '2024-01-04', 20000.00, 'Online', 'Completed'),
+       (4, '2024-01-05', 6000.00, 'Cash', 'Failed'),
+       (5, '2024-01-06', 11000.00, 'Credit Card', 'Completed'),
+       (6, '2024-01-07', 26000.00, 'Debit Card', 'Completed'),
+       (7, '2024-01-08', 6500.00, 'Online', 'Completed'),
+       (8, '2024-01-09', 11500.00, 'Cash', 'Pending'),
+       (9, '2024-01-10', 26500.00, 'Credit Card', 'Completed'),
+       (10, '2024-01-11', 7000.00, 'Debit Card', 'Completed'),
+       (11, '2024-02-01', 9600.00, 'Online', 'Completed'),
+       (12, '2024-02-03', 14400.00, 'Cash', 'Completed'),
+       (13, '2024-02-04', 43200.00, 'Credit Card', 'Completed'),
+       (14, '2024-02-05', 9600.00, 'Debit Card', 'Failed'),
+       (15, '2024-02-06', 22000.00, 'Online', 'Completed'),
+       (16, '2024-02-07', 52000.00, 'Credit Card', 'Completed'),
+       (17, '2024-02-08', 13000.00, 'Debit Card', 'Completed'),
+       (18, '2024-02-09', 23000.00, 'Cash', 'Pending'),
+       (19, '2024-02-10', 53000.00, 'Credit Card', 'Completed'),
+       (20, '2024-02-11', 14000.00, 'Debit Card', 'Completed');
+
+-- 8. Fetch all reservations for a customer
+SELECT * FROM reservations WHERE customer_id = 1;
+
+-- 9. Fetch payment details for a reservation
+SELECT * FROM payments WHERE reservation_id = 1;
+
+-- 10. Check total revenue from payments
+SELECT SUM(amount) AS total_revenue FROM payments WHERE payment_status = 'Completed';
+
+
+
+-- 11. Fetch occupancy rate (percentage of rooms booked)
+SELECT (COUNT(*) / (SELECT COUNT(*) FROM rooms) * 100) AS occupancy_rate
+FROM reservations
+WHERE reservation_status = 'Booked' OR reservation_status = 'Checked In';
+
+-- 12. List top-paying customers
+SELECT c.customer_id, CONCAT(c.first_name, ' ', c.last_name) AS customer_name, SUM(p.amount) AS total_paid
+FROM customers c
+JOIN reservations r ON c.customer_id = r.customer_id
+JOIN payments p ON r.reservation_id = p.reservation_id
+WHERE p.payment_status = 'Completed'
+GROUP BY c.customer_id
+ORDER BY total_paid DESC
+LIMIT 5;
+
+-- 13. Fetch revenue by room type
+SELECT r.room_type, SUM(res.total_amount) AS revenue
+FROM rooms r
+JOIN reservations res ON r.room_id = res.room_id
+GROUP BY r.room_type
+ORDER BY revenue DESC;
+
+-- 14. Fetch upcoming check-ins
+SELECT res.reservation_id, c.first_name, c.last_name, res.check_in_date, r.room_number
+FROM reservations res
+JOIN customers c ON res.customer_id = c.customer_id
+JOIN rooms r ON res.room_id = r.room_id
+WHERE res.check_in_date > CURDATE()
+ORDER BY res.check_in_date;
+
+-- 15. Fetch overdue check-outs
+SELECT res.reservation_id, c.first_name, c.last_name, res.check_out_date, r.room_number
+FROM reservations res
+JOIN customers c ON res.customer_id = c.customer_id
+JOIN rooms r ON res.room_id = r.room_id
+WHERE res.check_out_date < CURDATE() AND res.reservation_status = 'Checked In';
