@@ -1,4 +1,4 @@
-Name: Saurabh YadavC
+Name: Saurabh Yadav
 Company:CODETECH IT SOLUTIONS
 ID: CT0806GK
 Domain: SQL
@@ -8,7 +8,8 @@ Mentor: NEELA SANTHOSH KUMAR
 
 Overview of the project :
 
-project: Hotel Booking Management System
+project: Hotel Booking Management System 
+
 
 
 objective: This project is a database-driven application designed to manage hotel operations efficiently. It provides a structured schema to handle rooms, customers, reservations, and payments while offering advanced features like room availability tracking, automated status updates, and insightful analytics.
